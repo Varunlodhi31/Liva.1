@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Life Canvas — Paint Your Story</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --bg-card: rgba(22, 22, 35, 0.7);
+            --bg-glass: rgba(18, 18, 28, 0.6);
+            --text: #e8e8f0;
+            --text-secondary: #a0a0b8;
+            --text-muted: #6b6b80;
+            --border: rgba(255, 255, 255, 0.08);
+            --border-glass: rgba(255, 255, 255, 0.12);
+            --accent: #5b8def;
+            --accent-glow: rgba(91, 141, 239, 0.35);
+            --green: #4ade80;
+            --green-glow: rgba(74, 222, 128, 0.4);
+            --red: #f87171;
+            --red-glow: rgba(248, 113, 113, 0.35);
+            --gold: #fbbf24;
+            --gold-glow: rgba(251, 191, 36, 0.45);
+            --blue-current: #60a5fa;
+            --blue-glow: rgba(96, 165, 250, 0.5);
+            --gray-cell: #2a2a38;
+            --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.5);
+            --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.35);
+            --radius: 20px;
+            --radius-sm: 12px;
+            --radius-xs: 8px;
+            --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --font-primary: 'Inter', system-ui, -apple-system, sans-serif;
+            --font-display: 'Playfair Display', Georgia, serif;
+            --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+            --nav-height: 72px;
+            --header-height: 56px;
+            --cell-size: 7px;
+            --cell-gap: 1.5px;
+        }
+        [data-theme="light"] {
+            --bg: #f5f5f8;
+            --bg-card: rgba(255, 255, 255, 0.75);
+            --bg-glass: rgba(255, 255, 255, 0.55);
+            --text: #1a1a2e;
+            --text-secondary: #555570;
+            --text-muted: #9090a5;
+            --border: rgba(0, 0, 0, 0.07);
+            --border-glass: rgba(0, 0, 0, 0.1);
+            --accent: #4b7de0;
+            --accent-glow: rgba(75, 125, 224, 0.25);
+            --gray-cell: #e0e0e8;
+            --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.12);
+            --shadow-card: 0 8px 28px rgba(0, 0, 0, 0.08);
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html { font-size:16px; -webkit-tap-highlight-color:transparent; scroll-behavior:smooth; height:100%; overflow:hidden; }
+        body {
+            font-family:var(--font-primary); background:var(--bg); color:var(--text); height:100%; overflow:hidden;
+            user-select:none; -webkit-user-select:none; -webkit-font-smoothing:antialiased;
+            transition:background var(--transition), color var(--transition); position:relative;
+        }
+        body::before {
+            content:''; position:fixed; top:-40%; left:-30%; width:160%; height:160%;
+            background:radial-gradient(ellipse at 30% 20%, rgba(91,141,239,0.06) 0%, transparent 55%),
+                        radial-gradient(ellipse at 70% 60%, rgba(139,92,246,0.05) 0%, transparent 55%),
+                        radial-gradient(ellipse at 50% 80%, rgba(251,191,36,0.04) 0%, transparent 50%);
+            pointer-events:none; z-index:0; transition:opacity var(--transition);
+        }
+        #app { position:relative; z-index:1; height:100%; max-width:500px; margin:0 auto; display:flex; flex-direction:column; overflow:hidden; }
+        ::-webkit-scrollbar { width:3px; height:3px; }
+        ::-webkit-scrollbar-track { background:transparent; }
+        ::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.15); border-radius:10px; }
+        [data-theme="light"] ::-webkit-scrollbar-thumb { background:rgba(0,0,0,0.15); }
+
+        #auth-screen {
+            position:absolute; inset:0; z-index:100; display:flex; align-items:center; justify-content:center;
+            background:var(--bg); transition:all 0.5s cubic-bezier(0.4,0,0.2,1);
+        }
+        #auth-screen.hidden { opacity:0; pointer-events:none; transform:translateY(-30px); }
+        .auth-container {
+            width:90%; max-width:400px; padding:28px 22px; border-radius:var(--radius);
+            background:var(--bg-glass); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px);
+            border:1px solid var(--border-glass); box-shadow:var(--shadow-lg); text-align:center;
+            animation:fadeSlideUp 0.6s ease; max-height:90vh; overflow-y:auto;
+        }
+        @keyframes fadeSlideUp { from{opacity:0;transform:translateY(30px);} to{opacity:1;transform:translateY(0);} }
+        @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
+        @keyframes pulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.04);} }
+        @keyframes cellPop { 0%{transform:scale(1);} 30%{transform:scale(2.5);z-index:10;} 100%{transform:scale(1);z-index:1;} }
+        @keyframes spin { to{transform:rotate(360deg);} }
+        .auth-logo {
+            font-family:var(--font-display); font-size:2.2rem; font-weight:700; margin-bottom:4px;
+            background:linear-gradient(135deg,#5b8def,#a78bfa,#fbbf24);
+            -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+        }
+        .auth-subtitle { color:var(--text-secondary); font-size:0.85rem; margin-bottom:22px; letter-spacing:0.3px; }
+        .auth-tabs { display:flex; gap:4px; margin-bottom:20px; background:rgba(255,255,255,0.04); border-radius:30px; padding:4px; }
+        .auth-tab {
+            flex:1; padding:10px 14px; border-radius:26px; border:none; cursor:pointer; font-weight:600;
+            font-size:0.85rem; transition:all var(--transition); background:transparent; color:var(--text-secondary);
+            font-family:var(--font-primary);
+        }
+        .auth-tab.active { background:var(--accent); color:#fff; box-shadow:0 4px 15px var(--accent-glow); }
+        .input-group { margin-bottom:12px; text-align:left; }
+        .input-group label { display:block; font-size:0.72rem; font-weight:600; margin-bottom:4px; color:var(--text-secondary); letter-spacing:0.3px; text-transform:uppercase; }
+        .input-group input, .input-group select {
+            width:100%; padding:11px 13px; border-radius:var(--radius-xs); border:1px solid var(--border);
+            background:rgba(255,255,255,0.03); color:var(--text); font-size:0.9rem;
+            font-family:var(--font-primary); transition:all var(--transition); outline:none;
+        }
+        .input-group input:focus, .input-group select:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); background:rgba(255,255,255,0.06); }
+        .input-group select {
+            cursor:pointer; appearance:none; -webkit-appearance:none;
+            background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M6 8L1 3h10z' fill='%23a0a0b8'/%3E%3C/svg%3E");
+            background-repeat:no-repeat; background-position:right 14px center;
+        }
+        [data-theme="light"] .input-group input, [data-theme="light"] .input-group select { background:rgba(0,0,0,0.02); border-color:rgba(0,0,0,0.12); color:#1a1a2e; }
+        .btn {
+            width:100%; padding:12px; border-radius:30px; border:none; cursor:pointer; font-weight:700;
+            font-size:0.9rem; letter-spacing:0.4px; transition:all var(--transition); font-family:var(--font-primary);
+            position:relative; overflow:hidden;
+        }
+        .btn-primary { background:linear-gradient(135deg,#5b8def,#4b7de0); color:#fff; box-shadow:0 8px 25px var(--accent-glow); margin-top:6px; }
+        .btn-primary:hover { transform:translateY(-2px); box-shadow:0 12px 32px var(--accent-glow); }
+        .btn-primary:active { transform:scale(0.97); }
+        .btn-primary:disabled { opacity:0.6; cursor:not-allowed; transform:none; box-shadow:none; }
+        .btn-ghost { background:transparent; color:var(--accent); margin-top:8px; font-weight:600; font-size:0.8rem; }
+        .age-display { font-family:var(--font-mono); font-size:1rem; font-weight:600; color:var(--accent); text-align:center; margin:2px 0 8px; }
+        .spinner { display:inline-block; width:16px; height:16px; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation:spin 0.6s linear infinite; margin-right:6px; vertical-align:middle; }
+        .error-msg { color:var(--red); font-size:0.75rem; text-align:center; margin-top:4px; min-height:18px; }
+
+        #main-app { display:none; flex-direction:column; height:100%; overflow:hidden; }
+        #main-app.active { display:flex; }
+        .app-header { display:flex; align-items:center; justify-content:space-between; padding:10px 16px; min-height:var(--header-height); z-index:10; background:transparent; flex-shrink:0; }
+        .header-title { font-family:var(--font-display); font-size:1.3rem; font-weight:700; letter-spacing:-0.3px; }
+        .header-actions { display:flex; gap:8px; align-items:center; }
+        .icon-btn {
+            width:38px; height:38px; border-radius:50%; border:1px solid var(--border-glass);
+            background:var(--bg-glass); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+            cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:1.1rem;
+            transition:all var(--transition); color:var(--text);
+        }
+        .icon-btn:hover { background:rgba(255,255,255,0.1); transform:scale(1.05); }
+        .icon-btn:active { transform:scale(0.92); }
+        .theme-dot { width:20px; height:20px; border-radius:50%; background:#fbbf24; cursor:pointer; transition:all var(--transition); box-shadow:0 0 16px rgba(251,191,36,0.5); }
+        [data-theme="light"] .theme-dot { background:#6366f1; box-shadow:0 0 16px rgba(99,102,241,0.5); }
+
+        .content-area { flex:1; overflow-y:auto; overflow-x:hidden; padding:0 12px 90px; scroll-behavior:smooth; -webkit-overflow-scrolling:touch; }
+        .screen { display:none; animation:fadeSlideUp 0.4s ease; }
+        .screen.active { display:block; }
+
+        .calendar-controls { display:flex; align-items:center; gap:10px; margin:8px 0 14px; flex-wrap:wrap; justify-content:center; }
+        .zoom-btn { width:34px; height:34px; border-radius:50%; border:1px solid var(--border-glass); background:var(--bg-glass); backdrop-filter:blur(10px); cursor:pointer; font-size:1.2rem; font-weight:700; color:var(--text); transition:all var(--transition); display:flex; align-items:center; justify-content:center; }
+        .zoom-btn:hover { background:rgba(255,255,255,0.12); }
+        .zoom-label { font-family:var(--font-mono); font-size:0.8rem; color:var(--text-secondary); min-width:40px; text-align:center; }
+        .calendar-legend { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin-bottom:10px; font-size:0.7rem; color:var(--text-muted); }
+        .legend-item { display:flex; align-items:center; gap:4px; }
+        .legend-dot { width:9px; height:9px; border-radius:2px; flex-shrink:0; }
+        .legend-dot.green { background:var(--green); } .legend-dot.red { background:var(--red); } .legend-dot.gray { background:var(--gray-cell); } .legend-dot.blue { background:var(--blue-current); } .legend-dot.gold { background:var(--gold); }
+        #calendar-container { background:var(--bg-glass); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid var(--border-glass); border-radius:var(--radius); padding:14px; overflow-x:auto; overflow-y:auto; max-height:55vh; box-shadow:var(--shadow-card); transition:all var(--transition); scroll-behavior:smooth; }
+        .year-block { margin-bottom:8px; }
+        .year-label { font-family:var(--font-mono); font-size:0.68rem; font-weight:600; color:var(--text-muted); margin-bottom:2px; letter-spacing:1px; position:sticky; left:0; }
+        .year-grid { display:flex; flex-wrap:wrap; gap:var(--cell-gap); line-height:0; }
+        .day-cell { width:var(--cell-size); height:var(--cell-size); border-radius:1.5px; cursor:pointer; transition:all 0.15s ease; flex-shrink:0; }
+        .day-cell:hover { transform:scale(2.8); z-index:5; box-shadow:0 0 10px rgba(255,255,255,0.4); border-radius:3px; }
+        .day-cell.green { background:var(--green); box-shadow:0 0 4px var(--green-glow); }
+        .day-cell.red { background:var(--red); box-shadow:0 0 4px var(--red-glow); }
+        .day-cell.gray { background:var(--gray-cell); }
+        .day-cell.blue { background:var(--blue-current); box-shadow:0 0 8px var(--blue-glow); animation:pulse 2s infinite; border-radius:3px; }
+        .day-cell.gold { background:var(--gold); box-shadow:0 0 6px var(--gold-glow); border-radius:3px; }
+        .day-cell.pop { animation:cellPop 0.5s ease; }
+        .cell-tooltip { position:fixed; pointer-events:none; background:var(--bg-card); backdrop-filter:blur(20px); border:1px solid var(--border-glass); padding:8px 14px; border-radius:20px; font-size:0.78rem; font-weight:500; z-index:50; box-shadow:var(--shadow-lg); opacity:0; transition:opacity 0.2s ease; white-space:nowrap; font-family:var(--font-primary); }
+        .cell-tooltip.visible { opacity:1; }
+
+        .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); z-index:200; display:flex; align-items:center; justify-content:center; animation:fadeIn 0.3s ease; }
+        .modal-overlay.hidden { display:none; }
+        .modal-card { background:var(--bg-glass); backdrop-filter:blur(28px); -webkit-backdrop-filter:blur(28px); border:1px solid var(--border-glass); border-radius:var(--radius); padding:26px 20px; width:88%; max-width:360px; text-align:center; box-shadow:var(--shadow-lg); animation:fadeSlideUp 0.5s ease; }
+        .modal-card h3 { font-family:var(--font-display); font-size:1.4rem; margin-bottom:4px; }
+        .modal-card p { color:var(--text-secondary); margin-bottom:18px; font-size:0.85rem; }
+        .reflection-btns { display:flex; gap:10px; justify-content:center; }
+        .reflection-btn { flex:1; padding:12px 8px; border-radius:var(--radius-sm); border:2px solid transparent; cursor:pointer; font-weight:700; font-size:0.82rem; transition:all var(--transition); font-family:var(--font-primary); background:rgba(255,255,255,0.04); color:var(--text); }
+        .reflection-btn.btn-green { border-color:var(--green); background:rgba(74,222,128,0.1); }
+        .reflection-btn.btn-green:hover { background:rgba(74,222,128,0.25); box-shadow:0 8px 25px var(--green-glow); transform:translateY(-3px); }
+        .reflection-btn.btn-red { border-color:var(--red); background:rgba(248,113,113,0.1); }
+        .reflection-btn.btn-red:hover { background:rgba(248,113,113,0.25); box-shadow:0 8px 25px var(--red-glow); transform:translateY(-3px); }
+        .reflection-emoji { font-size:2.5rem; display:block; margin-bottom:4px; }
+
+        .stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+        .stat-card { background:var(--bg-glass); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid var(--border-glass); border-radius:var(--radius-sm); padding:14px; text-align:center; box-shadow:var(--shadow-card); transition:all var(--transition); }
+        .stat-card:hover { transform:translateY(-2px); }
+        .stat-value { font-family:var(--font-mono); font-size:1.6rem; font-weight:700; letter-spacing:-1px; background:linear-gradient(135deg,#5b8def,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+        .stat-value.green-val { background:linear-gradient(135deg,#4ade80,#22c55e); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+        .stat-value.red-val { background:linear-gradient(135deg,#f87171,#ef4444); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+        .stat-label { font-size:0.7rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-top:3px; }
+        .stat-card.wide { grid-column:1 / -1; }
+        .progress-bar-wrap { background:rgba(255,255,255,0.06); border-radius:20px; height:10px; margin-top:6px; overflow:hidden; }
+        .progress-bar-fill { height:100%; border-radius:20px; transition:width 1s cubic-bezier(0.4,0,0.2,1); background:linear-gradient(90deg,#4ade80,#22c55e); }
+        .mini-chart { display:flex; align-items:flex-end; gap:3px; height:45px; margin-top:6px; justify-content:center; }
+        .mini-bar { width:10px; border-radius:3px 3px 0 0; transition:height 0.6s ease; background:var(--accent); min-height:2px; }
+        .mini-bar.green-bar { background:var(--green); } .mini-bar.red-bar { background:var(--red); }
+
+        .search-bar { width:100%; padding:11px 15px; border-radius:30px; border:1px solid var(--border-glass); background:var(--bg-glass); backdrop-filter:blur(12px); color:var(--text); font-size:0.85rem; outline:none; margin-bottom:12px; font-family:var(--font-primary); transition:all var(--transition); }
+        .search-bar:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+        .user-card { display:flex; align-items:center; gap:10px; padding:12px; border-radius:var(--radius-sm); background:var(--bg-glass); backdrop-filter:blur(12px); border:1px solid var(--border-glass); margin-bottom:6px; transition:all var(--transition); cursor:default; }
+        .user-card:hover { transform:translateX(3px); border-color:var(--accent); }
+        .user-avatar { width:40px; height:40px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:1rem; color:#fff; letter-spacing:1px; }
+        .user-info { flex:1; min-width:0; }
+        .user-name { font-weight:600; font-size:0.85rem; }
+        .user-meta { font-size:0.68rem; color:var(--text-muted); }
+        .follow-btn { padding:7px 16px; border-radius:20px; border:1px solid var(--accent); background:transparent; color:var(--accent); cursor:pointer; font-weight:600; font-size:0.75rem; transition:all var(--transition); font-family:var(--font-primary); white-space:nowrap; }
+        .follow-btn.following { background:var(--accent); color:#fff; }
+        .follow-btn:hover { box-shadow:0 4px 15px var(--accent-glow); }
+        .leaderboard-rank { font-family:var(--font-mono); font-weight:700; font-size:1.1rem; color:var(--gold); min-width:28px; text-align:center; }
+
+        .settings-section { margin-bottom:18px; }
+        .settings-section h4 { font-size:0.72rem; text-transform:uppercase; letter-spacing:1.5px; color:var(--text-muted); margin-bottom:6px; }
+        .setting-row { display:flex; align-items:center; justify-content:space-between; padding:13px 15px; background:var(--bg-glass); backdrop-filter:blur(12px); border:1px solid var(--border-glass); border-radius:var(--radius-xs); margin-bottom:5px; transition:all var(--transition); }
+        .setting-row span { font-weight:500; font-size:0.85rem; }
+        .toggle-switch { position:relative; width:48px; height:26px; flex-shrink:0; }
+        .toggle-switch input { opacity:0; width:0; height:0; }
+        .toggle-slider { position:absolute; cursor:pointer; inset:0; background:rgba(255,255,255,0.15); border-radius:26px; transition:all var(--transition); }
+        .toggle-slider::before { content:''; position:absolute; height:20px; width:20px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:all var(--transition); }
+        input:checked+.toggle-slider { background:var(--accent); }
+        input:checked+.toggle-slider::before { transform:translateX(22px); }
+        .privacy-option { padding:10px 13px; border-radius:var(--radius-xs); cursor:pointer; border:2px solid transparent; background:rgba(255,255,255,0.03); margin-bottom:4px; transition:all var(--transition); font-size:0.82rem; text-align:center; font-weight:500; }
+        .privacy-option.selected { border-color:var(--accent); background:rgba(91,141,239,0.1); }
+
+        .bottom-nav { position:absolute; bottom:0; left:0; right:0; display:flex; justify-content:space-around; align-items:center; height:var(--nav-height); background:var(--bg-glass); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border-top:1px solid var(--border-glass); z-index:50; padding:0 4px; padding-bottom:env(safe-area-inset-bottom,8px); max-width:500px; margin:0 auto; border-radius:24px 24px 0 0; }
+        .nav-item { display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer; padding:8px 10px; border-radius:16px; transition:all var(--transition); font-size:0.65rem; font-weight:500; color:var(--text-muted); position:relative; font-family:var(--font-primary); }
+        .nav-item.active { color:var(--accent); font-weight:700; }
+        .nav-item.active::after { content:''; position:absolute; top:0; width:18px; height:3px; border-radius:0 0 3px 3px; background:var(--accent); }
+        .nav-icon { font-size:1.2rem; }
+        .nav-badge { position:absolute; top:2px; right:-2px; width:8px; height:8px; border-radius:50%; background:var(--red); animation:pulse 2s infinite; }
+
+        .toast { position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:300; background:var(--bg-card); backdrop-filter:blur(20px); border:1px solid var(--border-glass); padding:12px 20px; border-radius:30px; font-weight:600; font-size:0.82rem; box-shadow:var(--shadow-lg); animation:fadeSlideUp 0.4s ease; text-align:center; max-width:90%; font-family:var(--font-primary); }
+        .toast.hidden { display:none; }
+        .sync-status { font-size:0.6rem; color:var(--text-muted); text-align:center; margin-top:4px; font-family:var(--font-mono); }
+        .sync-status.online { color:var(--green); }
+        .sync-status.offline { color:var(--red); }
+
+        @media (min-width:500px) { #calendar-container { max-height:60vh; } .day-cell { width:9px; height:9px; } }
+        @media (max-width:360px) { .day-cell { width:5px; height:5px; --cell-gap:1px; } .stat-value { font-size:1.3rem; } .auth-container { padding:18px 12px; } }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="auth-screen">
+            <div class="auth-container" id="auth-container">
+                <div class="auth-logo">Life Canvas</div>
+                <p class="auth-subtitle">Every day is a brushstroke. Paint your story.</p>
+                <div class="auth-tabs">
+                    <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Sign In</button>
+                    <button class="auth-tab" id="tab-signup" onclick="switchAuthTab('signup')">Sign Up</button>
+                </div>
+                <form id="auth-form" onsubmit="handleAuth(event)">
+                    <div id="auth-fields"></div>
+                    <div class="error-msg" id="auth-error"></div>
+                    <button type="submit" class="btn btn-primary" id="auth-submit-btn">Sign In</button>
+                </form>
+                <button class="btn btn-ghost" id="demo-btn" onclick="demoLogin()">✨ Try Demo Account</button>
+                <div class="sync-status" id="sync-status">🔗 Firebase Ready</div>
+            </div>
+        </div>
+
+        <div id="main-app">
+            <header class="app-header">
+                <span class="header-title" id="header-title">Life Canvas</span>
+                <div class="header-actions">
+                    <span class="sync-status online" id="sync-indicator" style="margin-right:4px;" title="Sync status">☁️</span>
+                    <div class="theme-dot" onclick="toggleTheme()" title="Toggle theme"></div>
+                    <button class="icon-btn" onclick="showNotifications()" title="Notifications" style="position:relative;">
+                        🔔<span id="notif-badge-dot" style="display:none;position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:#f87171;"></span>
+                    </button>
+                </div>
+            </header>
+            <div class="content-area" id="content-area">
+                <div class="screen active" id="screen-calendar">
+                    <div class="calendar-controls">
+                        <button class="zoom-btn" onclick="zoomCalendar(-0.2)">−</button>
+                        <span class="zoom-label" id="zoom-label">100%</span>
+                        <button class="zoom-btn" onclick="zoomCalendar(0.2)">+</button>
+                        <button class="zoom-btn" onclick="resetZoom()" style="font-size:0.7rem;">↺</button>
+                    </div>
+                    <div class="calendar-legend">
+                        <span class="legend-item"><span class="legend-dot green"></span> Proud</span>
+                        <span class="legend-item"><span class="legend-dot red"></span> Unsatisfied</span>
+                        <span class="legend-item"><span class="legend-dot blue"></span> Today</span>
+                        <span class="legend-item"><span class="legend-dot gold"></span> Joined</span>
+                        <span class="legend-item"><span class="legend-dot gray"></span> Future</span>
+                    </div>
+                    <div id="calendar-container"></div>
+                    <div style="text-align:center;margin-top:10px;">
+                        <button class="btn btn-primary" style="width:auto;padding:10px 22px;font-size:0.82rem;" onclick="openReflectionModal()">✦ How was today?</button>
+                    </div>
+                </div>
+                <div class="screen" id="screen-stats"><div class="stats-grid" id="stats-grid"></div></div>
+                <div class="screen" id="screen-friends">
+                    <input type="text" class="search-bar" placeholder="🔍 Search people..." oninput="filterFriends(this.value)" id="friend-search">
+                    <div id="friends-list"></div>
+                </div>
+                <div class="screen" id="screen-global">
+                    <h3 style="font-family:var(--font-display);margin-bottom:10px;">🌎 Global Community</h3>
+                    <div class="stats-grid" id="global-stats-grid"></div>
+                    <h4 style="margin-top:6px;font-size:0.78rem;color:var(--text-muted);">🏆 Leaderboard</h4>
+                    <div id="leaderboard"></div>
+                </div>
+                <div class="screen" id="screen-settings">
+                    <div class="settings-section"><h4>Privacy</h4><div id="privacy-options"></div></div>
+                    <div class="settings-section"><h4>Visibility Controls</h4><div id="visibility-toggles"></div></div>
+                    <div class="settings-section"><h4>Account</h4>
+                        <div class="setting-row" onclick="logout()" style="cursor:pointer;justify-content:center;">
+                            <span style="color:#f87171;">🚪 Log Out</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <nav class="bottom-nav">
+                <div class="nav-item active" data-screen="calendar" onclick="switchScreen('calendar')"><span class="nav-icon">📅</span> Home</div>
+                <div class="nav-item" data-screen="stats" onclick="switchScreen('stats')"><span class="nav-icon">📊</span> Stats</div>
+                <div class="nav-item" data-screen="friends" onclick="switchScreen('friends')"><span class="nav-icon">👥</span> Friends</div>
+                <div class="nav-item" data-screen="global" onclick="switchScreen('global')"><span class="nav-icon">🌎</span> Global</div>
+                <div class="nav-item" data-screen="settings" onclick="switchScreen('settings')"><span class="nav-icon">⚙️</span> Settings</div>
+            </nav>
+        </div>
+
+        <div class="modal-overlay hidden" id="reflection-modal">
+            <div class="modal-card">
+                <span class="reflection-emoji">🎨</span>
+                <h3>How do you feel about today?</h3>
+                <p id="reflection-date"></p>
+                <div class="reflection-btns">
+                    <button class="reflection-btn btn-green" onclick="reflectDay('green')"><span style="font-size:1.5rem;">🟢</span><br>A day I'm proud of</button>
+                    <button class="reflection-btn btn-red" onclick="reflectDay('red')"><span style="font-size:1.5rem;">🔴</span><br>Not satisfied</button>
+                </div>
+                <button style="margin-top:12px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.78rem;" onclick="closeReflectionModal()">Skip for now</button>
+            </div>
+        </div>
+
+        <div class="toast hidden" id="toast"></div>
+        <div class="cell-tooltip" id="cell-tooltip"></div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+    <script>
+        (function() {
+            const firebaseConfig = {
+                apiKey: "AIzaSyBgnOqsBSEgE21f2uSFt6uEG6xYVL8Bsns",
+                authDomain: "lifecanvas-f7ae7.firebaseapp.com",
+                databaseURL: "https://lifecanvas-f7ae7-default-rtdb.firebaseio.com",
+                projectId: "lifecanvas-f7ae7",
+                storageBucket: "lifecanvas-f7ae7.firebasestorage.app",
+                messagingSenderId: "1019226242609",
+                appId: "1:1019226242609:web:6f2847fa6080276e01df10"
+            };
+
+            let firebaseReady = false;
+            let auth, db;
+            try {
+                firebase.initializeApp(firebaseConfig);
+                auth = firebase.auth();
+                db = firebase.database();
+                firebaseReady = true;
+                document.getElementById('sync-status').textContent = '🔗 Firebase Connected';
+                document.getElementById('sync-status').classList.add('online');
+                console.log('🔥 Firebase initialized');
+            } catch (e) {
+                console.warn('Firebase init error:', e.message);
+                document.getElementById('sync-status').textContent = '⚠️ Offline Mode';
+                document.getElementById('sync-status').classList.add('offline');
+                firebaseReady = false;
+            }
+
+            const APP = {
+                user: null,
+                uid: null,
+                theme: 'dark',
+                currentScreen: 'calendar',
+                calendarZoom: 1,
+                calendarData: {},
+                followers: {},
+                following: {},
+                settings: { privacy: 'public', hideAge: false, hideCountry: false, hideCalendar: false, hideStats: false },
+                notifications: [],
+                lastReminderTime: null,
+                notificationPermission: 'default',
+                isOnline: firebaseReady,
+            };
+
+            function saveLocal(key, data) { try { localStorage.setItem('lifecanvas_'+key, JSON.stringify(data)); } catch(e){} }
+            function loadLocal(key) { try { const d=localStorage.getItem('lifecanvas_'+key); return d ? JSON.parse(d) : null; } catch(e){ return null; } }
+            function saveAllLocal() {
+                saveLocal('calendar', APP.calendarData); saveLocal('settings', APP.settings);
+                saveLocal('followers', APP.followers); saveLocal('following', APP.following);
+                saveLocal('theme', APP.theme); saveLocal('notifications', APP.notifications);
+                saveLocal('lastReminder', APP.lastReminderTime);
+                if(APP.user) saveLocal('user', APP.user); if(APP.uid) saveLocal('uid', APP.uid);
+            }
+            function loadAllLocal() {
+                APP.calendarData = loadLocal('calendar') || {};
+                APP.settings = loadLocal('settings') || { privacy:'public', hideAge:false, hideCountry:false, hideCalendar:false, hideStats:false };
+                APP.followers = loadLocal('followers') || {}; APP.following = loadLocal('following') || {};
+                APP.theme = loadLocal('theme') || 'dark'; APP.notifications = loadLocal('notifications') || [];
+                APP.lastReminderTime = loadLocal('lastReminder') || null;
+                APP.user = loadLocal('user') || null; APP.uid = loadLocal('uid') || null;
+            }
+
+            function dbRef(path) { if(!firebaseReady||!db) return null; return db.ref(path); }
+            async function dbSet(path, value) { if(!firebaseReady||!db) return false; try{ await db.ref(path).set(value); return true; }catch(e){ console.warn(e); return false; } }
+            async function dbUpdate(path, value) { if(!firebaseReady||!db) return false; try{ await db.ref(path).update(value); return true; }catch(e){ console.warn(e); return false; } }
+            async function dbGet(path) { if(!firebaseReady||!db) return null; try{ const snap = await db.ref(path).once('value'); return snap.val(); }catch(e){ console.warn(e); return null; } }
+
+            async function syncCalendarToFirebase() { if(!firebaseReady||!APP.uid) return; await dbSet(`users/${APP.uid}/calendar`, APP.calendarData); }
+            async function syncSettingsToFirebase() {
+                if(!firebaseReady||!APP.uid) return;
+                await dbUpdate(`users/${APP.uid}/settings`, APP.settings);
+                if(APP.settings.privacy==='public') await updatePublicProfile();
+                else await dbSet(`publicProfiles/${APP.uid}`, null);
+            }
+            async function updatePublicProfile() {
+                if(!firebaseReady||!APP.uid||!APP.user) return;
+                if(APP.settings.privacy!=='public') { await dbSet(`publicProfiles/${APP.uid}`, null); return; }
+                const stats = calculateStats();
+                const publicData = {
+                    name: APP.settings.hideAge?'Anonymous':APP.user.name,
+                    country: APP.settings.hideCountry?'Hidden':APP.user.country,
+                    age: APP.settings.hideAge?null:APP.user.age,
+                    gender: APP.user.gender||'unspecified',
+                    satisfaction: stats.satisfaction,
+                    greenDays: stats.greenDays,
+                    redDays: stats.redDays,
+                    joinedDate: APP.user.joinedDate,
+                    privacy: 'public',
+                };
+                await dbUpdate(`publicProfiles/${APP.uid}`, publicData);
+            }
+            async function syncFollowersToFirebase() {
+                if(!firebaseReady||!APP.uid) return;
+                await dbUpdate(`users/${APP.uid}/following`, APP.following);
+            }
+            async function loadFromFirebase() {
+                if(!firebaseReady||!APP.uid) return;
+                const allData = await dbGet(`users/${APP.uid}`);
+                if(allData) {
+                    if(allData.calendar) APP.calendarData = {...APP.calendarData, ...allData.calendar};
+                    if(allData.settings) APP.settings = {...APP.settings, ...allData.settings};
+                    if(allData.followers) APP.followers = {...APP.followers, ...allData.followers};
+                    if(allData.following) APP.following = {...APP.following, ...allData.following};
+                    if(allData.profile && !APP.user) APP.user = allData.profile;
+                }
+                saveAllLocal();
+            }
+
+            function toggleTheme() { APP.theme = APP.theme==='dark'?'light':'dark'; applyTheme(); saveAllLocal(); refreshCalendarIfVisible(); }
+            function applyTheme() {
+                document.documentElement.setAttribute('data-theme', APP.theme);
+                const dot = document.querySelector('.theme-dot');
+                if(dot) { dot.style.background = APP.theme==='light'?'#6366f1':'#fbbf24'; dot.style.boxShadow = APP.theme==='light'?'0 0 16px rgba(99,102,241,0.5)':'0 0 16px rgba(251,191,36,0.5)'; }
+            }
+
+            function switchAuthTab(tab) {
+                document.getElementById('tab-login').classList.toggle('active', tab==='login');
+                document.getElementById('tab-signup').classList.toggle('active', tab==='signup');
+                renderAuthFields(tab);
+                document.getElementById('auth-submit-btn').textContent = tab==='login'?'Sign In':'Create Account';
+                document.getElementById('auth-form').setAttribute('data-mode', tab);
+                document.getElementById('auth-error').textContent = '';
+            }
+            function renderAuthFields(mode) {
+                const container = document.getElementById('auth-fields');
+                if(mode==='login') {
+                    container.innerHTML = `<div class="input-group"><label>Email</label><input type="email" id="auth-email" placeholder="your@email.com" required autocomplete="email"></div><div class="input-group"><label>Password</label><input type="password" id="auth-password" placeholder="Your password" required autocomplete="current-password"></div>`;
+                } else {
+                    container.innerHTML = `<div class="input-group"><label>Full Name</label><input type="text" id="auth-name" placeholder="Your full name" required></div><div class="input-group"><label>Email</label><input type="email" id="auth-email" placeholder="your@email.com" required autocomplete="email"></div><div class="input-group"><label>Password</label><input type="password" id="auth-password" placeholder="Min 6 characters" required minlength="6" autocomplete="new-password"></div><div class="input-group"><label>Date of Birth</label><input type="date" id="auth-dob" onchange="calcAuthAge()" required></div><div class="age-display" id="auth-age-display"></div><div class="input-group"><label>Country</label><input type="text" id="auth-country" placeholder="e.g. United States" required></div><div class="input-group"><label>Gender (optional)</label><select id="auth-gender"><option value="">Prefer not to say</option><option value="male">Male</option><option value="female">Female</option><option value="non-binary">Non-binary</option></select></div>`;
+                }
+            }
+            function calcAuthAge() {
+                const dobVal = document.getElementById('auth-dob')?.value;
+                const display = document.getElementById('auth-age-display');
+                if(dobVal && display) { const age = calculateAge(new Date(dobVal)); display.textContent = `Calculated Age: ${age} years`; }
+            }
+            function calculateAge(dob) { const today=new Date(); let age=today.getFullYear()-dob.getFullYear(); const m=today.getMonth()-dob.getMonth(); if(m<0||(m===0&&today.getDate()<dob.getDate())) age--; return Math.max(0,age); }
+            function showAuthError(msg) { document.getElementById('auth-error').textContent = msg; }
+
+            async function handleAuth(e) {
+                e.preventDefault();
+                const mode = document.getElementById('auth-form').getAttribute('data-mode')||'login';
+                const email = document.getElementById('auth-email')?.value?.trim();
+                const password = document.getElementById('auth-password')?.value;
+                const submitBtn = document.getElementById('auth-submit-btn');
+                if(!email||!password) { showAuthError('Please fill in all required fields'); return; }
+                if(password.length<6) { showAuthError('Password must be at least 6 characters'); return; }
+                submitBtn.disabled=true; submitBtn.innerHTML='<span class="spinner"></span> Please wait...'; showAuthError('');
+                try {
+                    if(mode==='signup') {
+                        const name = document.getElementById('auth-name')?.value?.trim();
+                        const dobVal = document.getElementById('auth-dob')?.value;
+                        const country = document.getElementById('auth-country')?.value?.trim();
+                        const gender = document.getElementById('auth-gender')?.value||'';
+                        if(!name||!dobVal||!country) { showAuthError('Please fill in all required fields'); submitBtn.disabled=false; submitBtn.textContent='Create Account'; return; }
+                        const dob=new Date(dobVal); const age=calculateAge(dob);
+                        if(age<10) { showAuthError('You must be at least 10 years old'); submitBtn.disabled=false; submitBtn.textContent='Create Account'; return; }
+                        if(age>120) { showAuthError('Please enter a valid date of birth'); submitBtn.disabled=false; submitBtn.textContent='Create Account'; return; }
+                        const userCred = await auth.createUserWithEmailAndPassword(email, password);
+                        const uid = userCred.user.uid; APP.uid=uid;
+                        APP.user = { name, email, dob:dobVal, age, country, gender, joinedDate: new Date().toISOString().split('T')[0], joinedTimestamp: Date.now() };
+                        APP.calendarData[APP.user.joinedDate]='gold';
+                        APP.followers={}; APP.following={};
+                        APP.settings = { privacy:'public', hideAge:false, hideCountry:false, hideCalendar:false, hideStats:false };
+                        await dbUpdate(`users/${uid}/profile`, APP.user);
+                        await dbSet(`users/${uid}/calendar`, APP.calendarData);
+                        await dbSet(`users/${uid}/settings`, APP.settings);
+                        await dbSet(`users/${uid}/followers`, {});
+                        await dbSet(`users/${uid}/following`, {});
+                        if(APP.settings.privacy==='public') await updatePublicProfile();
+                        saveAllLocal(); showMainApp(); refreshAll(); showToast('✨ Welcome to Life Canvas, '+name+'!');
+                    } else {
+                        const userCred = await auth.signInWithEmailAndPassword(email, password);
+                        const uid = userCred.user.uid; APP.uid=uid;
+                        const profile = await dbGet(`users/${uid}/profile`);
+                        if(profile) APP.user = profile;
+                        else { APP.user = { name: email.split('@')[0], email, dob:'1995-01-01', age:calculateAge(new Date('1995-01-01')), country:'Unknown', gender:'', joinedDate:new Date().toISOString().split('T')[0], joinedTimestamp:Date.now() }; await dbUpdate(`users/${uid}/profile`, APP.user); }
+                        await loadFromFirebase();
+                        if(!APP.calendarData[APP.user.joinedDate]) { APP.calendarData[APP.user.joinedDate]='gold'; await syncCalendarToFirebase(); }
+                        saveAllLocal(); showMainApp(); refreshAll(); showToast('👋 Welcome back, '+APP.user.name+'!');
+                    }
+                } catch(err) {
+                    if(err.code==='auth/user-not-found'||err.code==='auth/wrong-password') showAuthError('Invalid email or password');
+                    else if(err.code==='auth/email-already-in-use') showAuthError('Email already registered.');
+                    else if(err.code==='auth/too-many-requests') showAuthError('Too many attempts. Try later.');
+                    else if(err.code==='auth/network-request-failed') showAuthError('Network error.');
+                    else showAuthError(err.message||'Authentication failed');
+                }
+                submitBtn.disabled=false; submitBtn.textContent = mode==='login'?'Sign In':'Create Account';
+            }
+
+            async function demoLogin() {
+                const submitBtn=document.getElementById('auth-submit-btn'); submitBtn.disabled=true; submitBtn.innerHTML='<span class="spinner"></span> Setting up demo...'; showAuthError('');
+                const demoEmail='demo@lifecanvas.app', demoPassword='demo123456';
+                try {
+                    let userCred; try { userCred = await auth.signInWithEmailAndPassword(demoEmail, demoPassword); } catch(signInErr) {
+                        if(signInErr.code==='auth/user-not-found') {
+                            userCred = await auth.createUserWithEmailAndPassword(demoEmail, demoPassword);
+                            const uid=userCred.user.uid; const dob=new Date('1998-06-15');
+                            const profile = { name:'Alex Morgan', email:demoEmail, dob:'1998-06-15', age:calculateAge(dob), country:'United States', gender:'non-binary', joinedDate:new Date(Date.now()-365*24*60*60*1000).toISOString().split('T')[0], joinedTimestamp:Date.now()-365*24*60*60*1000 };
+                            const joinedKey=profile.joinedDate; const calData={[joinedKey]:'gold'};
+                            const start=new Date(dob); const today=new Date();
+                            for(let d=new Date(start); d<=today; d.setDate(d.getDate()+1)) { const key=d.toISOString().split('T')[0]; if(key===joinedKey) continue; calData[key]=Math.random()<0.7?'green':'red'; }
+                            await dbUpdate(`users/${uid}/profile`, profile); await dbSet(`users/${uid}/calendar`, calData);
+                            await dbSet(`users/${uid}/settings`, {privacy:'public',hideAge:false,hideCountry:false,hideCalendar:false,hideStats:false});
+                            await dbSet(`users/${uid}/followers`, {}); await dbSet(`users/${uid}/following`, {});
+                        } else throw signInErr;
+                    }
+                    const uid=userCred.user.uid; APP.uid=uid;
+                    const profile=await dbGet(`users/${uid}/profile`); APP.user=profile;
+                    await loadFromFirebase(); if(!APP.calendarData[APP.user.joinedDate]) { APP.calendarData[APP.user.joinedDate]='gold'; await syncCalendarToFirebase(); }
+                    saveAllLocal(); showMainApp(); refreshAll(); showToast('✨ Welcome to your Life Canvas demo!');
+                } catch(err) {
+                    showAuthError('Firebase unavailable. Using offline demo...');
+                    setTimeout(()=>{
+                        const dob=new Date('1998-06-15'); APP.uid='local_demo';
+                        APP.user={name:'Alex Morgan',email:demoEmail,dob:'1998-06-15',age:calculateAge(dob),country:'United States',gender:'non-binary',joinedDate:new Date(Date.now()-365*24*60*60*1000).toISOString().split('T')[0],joinedTimestamp:Date.now()-365*24*60*60*1000};
+                        const joinedKey=APP.user.joinedDate; APP.calendarData={[joinedKey]:'gold'};
+                        const start=new Date(dob); const today=new Date();
+                        for(let d=new Date(start); d<=today; d.setDate(d.getDate()+1)) { const key=d.toISOString().split('T')[0]; if(key===joinedKey) continue; APP.calendarData[key]=Math.random()<0.7?'green':'red'; }
+                        APP.settings={privacy:'public',hideAge:false,hideCountry:false,hideCalendar:false,hideStats:false}; APP.followers={}; APP.following={};
+                        saveAllLocal(); showMainApp(); refreshAll(); showToast('✨ Offline demo mode');
+                    },800);
+                }
+                submitBtn.disabled=false; submitBtn.textContent='Sign In';
+            }
+
+            async function logout() { if(confirm('Log out? Your data is saved.')) { saveAllLocal(); if(firebaseReady&&auth&&auth.currentUser) try{await auth.signOut();}catch(e){} APP.user=null; APP.uid=null; APP.calendarData={}; APP.followers={}; APP.following={}; showAuthScreen(); switchAuthTab('login'); } }
+            function showAuthScreen() { document.getElementById('auth-screen').classList.remove('hidden'); document.getElementById('main-app').classList.remove('active'); switchAuthTab('login'); }
+            function showMainApp() { document.getElementById('auth-screen').classList.add('hidden'); document.getElementById('main-app').classList.add('active'); document.getElementById('header-title').textContent='Life Canvas'; updateSyncIndicator(); }
+            function updateSyncIndicator() { const ind=document.getElementById('sync-indicator'); if(ind) { ind.textContent=firebaseReady&&auth&&auth.currentUser?'☁️':'💾'; ind.title=firebaseReady&&auth&&auth.currentUser?'Synced to cloud':'Local storage'; } }
+
+            function switchScreen(name) {
+                APP.currentScreen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+                const screenEl=document.getElementById('screen-'+name); if(screenEl) screenEl.classList.add('active');
+                document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+                const navItem=document.querySelector(`.nav-item[data-screen="${name}"]`); if(navItem) navItem.classList.add('active');
+                if(name==='calendar') refreshCalendar(); if(name==='stats') refreshStats(); if(name==='friends') refreshFriends();
+                if(name==='global') refreshGlobal(); if(name==='settings') refreshSettings();
+                document.getElementById('content-area').scrollTop=0;
+            }
+            function refreshAll() { refreshCalendar(); refreshStats(); refreshFriends(); refreshGlobal(); refreshSettings(); updateSyncIndicator(); }
+            function refreshCalendarIfVisible() { if(APP.currentScreen==='calendar') refreshCalendar(); }
+
+            function refreshCalendar() {
+                const container=document.getElementById('calendar-container');
+                if(!APP.user) { container.innerHTML='<p style="text-align:center;color:var(--text-muted);padding:20px;">Sign in to see your calendar</p>'; return; }
+                const dob=new Date(APP.user.dob), today=new Date(), endOfLife=new Date(dob); endOfLife.setFullYear(dob.getFullYear()+80);
+                const joinedKey=APP.user.joinedDate, todayKey=today.toISOString().split('T')[0];
+                const cellSize=Math.max(5,Math.round(7*APP.calendarZoom)), cellGap=Math.max(1,Math.round(1.5*APP.calendarZoom));
+                container.style.setProperty('--cell-size',cellSize+'px'); container.style.setProperty('--cell-gap',cellGap+'px');
+                let html=''; const startYear=dob.getFullYear(), endYear=endOfLife.getFullYear();
+                const currentYear = today.getFullYear();
+                for(let y=startYear; y<=endYear; y++) {
+                    html+=`<div class="year-block" id="year-${y}"><div class="year-label">${y}</div><div class="year-grid">`;
+                    const ys=new Date(y,0,1), ye=new Date(y,11,31);
+                    const iter=new Date(Math.max(ys.getTime(),dob.getTime())), iterEnd=new Date(Math.min(ye.getTime(),endOfLife.getTime()));
+                    while(iter<=iterEnd) { const key=iter.toISOString().split('T')[0]; let cls='gray';
+                        if(key===joinedKey) cls='gold'; else if(key===todayKey) cls='blue';
+                        else if(APP.calendarData[key]==='green') cls='green'; else if(APP.calendarData[key]==='red') cls='red';
+                        else if(iter<today) cls='gray';
+                        html+=`<span class="day-cell ${cls}" data-date="${key}" onclick="onCellClick(event,'${key}')" onmouseenter="showCellTooltip(event,'${key}')" onmouseleave="hideCellTooltip()"></span>`;
+                        iter.setDate(iter.getDate()+1);
+                    } html+='</div></div>';
+                } container.innerHTML=html;
+                document.getElementById('zoom-label').textContent=Math.round(APP.calendarZoom*100)+'%';
+                // Auto scroll to current year block
+                setTimeout(()=>{
+                    const yearBlock = document.getElementById('year-'+currentYear);
+                    if(yearBlock) yearBlock.scrollIntoView({behavior:'smooth', block:'center'});
+                }, 300);
+            }
+            function zoomCalendar(d) { APP.calendarZoom=Math.max(0.4,Math.min(3,APP.calendarZoom+d)); refreshCalendar(); }
+            function resetZoom() { APP.calendarZoom=1; refreshCalendar(); }
+
+            function onCellClick(e,dateKey) { e.target.classList.add('pop'); setTimeout(()=>e.target.classList.remove('pop'),500);
+                const status=APP.calendarData[dateKey]; const todayKey=new Date().toISOString().split('T')[0];
+                if(dateKey===todayKey&&!status) { openReflectionModal(); return; }
+                if(dateKey===APP.user?.joinedDate) showToast('⭐ The day you joined Life Canvas!');
+                else if(status==='green') showToast('🟢 '+formatDate(dateKey)+' — A day you were proud of');
+                else if(status==='red') showToast('🔴 '+formatDate(dateKey)+' — Not satisfied');
+                else if(dateKey>todayKey) showToast('⚪ '+formatDate(dateKey)+' — Future day');
+                else showToast('⚪ '+formatDate(dateKey)+' — Unmarked day');
+            }
+            function showCellTooltip(e,dateKey) { const tip=document.getElementById('cell-tooltip'); const status=APP.calendarData[dateKey];
+                const txt=status==='green'?'🟢 Proud':status==='red'?'🔴 Unsatisfied':status==='gold'?'⭐ Joined':'⚪ '+(dateKey>new Date().toISOString().split('T')[0]?'Future':'Unmarked');
+                tip.textContent=formatDate(dateKey)+' — '+txt; tip.style.left=(e.clientX+15)+'px'; tip.style.top=(e.clientY-40)+'px'; tip.classList.add('visible'); }
+            function hideCellTooltip() { document.getElementById('cell-tooltip').classList.remove('visible'); }
+            function formatDate(key) { const d=new Date(key+'T00:00:00'); return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+
+            function openReflectionModal() { const today=new Date().toISOString().split('T')[0]; if(APP.calendarData[today]&&APP.calendarData[today]!=='gold') { showToast('Today already marked'); return; } document.getElementById('reflection-date').textContent=formatDate(today); document.getElementById('reflection-modal').classList.remove('hidden'); }
+            function closeReflectionModal() { document.getElementById('reflection-modal').classList.add('hidden'); }
+            async function reflectDay(color) { const today=new Date().toISOString().split('T')[0]; APP.calendarData[today]=color; saveAllLocal(); await syncCalendarToFirebase(); if(APP.settings.privacy==='public') await updatePublicProfile(); closeReflectionModal(); refreshCalendar(); refreshStats(); showToast(color==='green'?'🟢 Beautiful!':'🔴 Noted. Tomorrow is fresh.'); APP.lastReminderTime=Date.now(); document.getElementById('notif-badge-dot').style.display='none'; saveAllLocal(); }
+
+            function calculateStats() {
+                if(!APP.user) return {age:0,daysLived:0,remaining:0,greenDays:0,redDays:0,satisfaction:0,currentStreak:0,longestStreak:0,monthlyData:[]};
+                const dob=new Date(APP.user.dob), today=new Date(); const daysLived=Math.floor((today-dob)/86400000), estimatedTotal=80*365, remaining=Math.max(0,estimatedTotal-daysLived);
+                let green=0,red=0; Object.values(APP.calendarData).forEach(v=>{if(v==='green')green++;if(v==='red')red++;});
+                const total=green+red, satisfaction=total>0?Math.round((green/total)*100):0;
+                let cur=0,long=0,temp=0; const iter=new Date(dob); while(iter<=today) { const k=iter.toISOString().split('T')[0]; if(APP.calendarData[k]==='green'){temp++;long=Math.max(long,temp);}else temp=0; iter.setDate(iter.getDate()+1); }
+                const check=new Date(today); while(check>=dob) { const k=check.toISOString().split('T')[0]; if(APP.calendarData[k]==='green') cur++; else break; check.setDate(check.getDate()-1); }
+                const monthly=[]; for(let m=0;m<6;m++){ const md=new Date(today.getFullYear(),today.getMonth()-m,1), mk=md.toISOString().slice(0,7); let mg=0,mr=0; const im=new Date(md), em=new Date(today.getFullYear(),today.getMonth()-m+1,0); while(im<=em&&im<=today){ const k=im.toISOString().split('T')[0]; if(APP.calendarData[k]==='green')mg++;if(APP.calendarData[k]==='red')mr++; im.setDate(im.getDate()+1); } monthly.unshift({month:mk,green:mg,red:mr}); }
+                return {age:APP.user.age,daysLived,remaining,greenDays:green,redDays:red,satisfaction,currentStreak:cur,longestStreak:long,monthlyData:monthly};
+            }
+            function refreshStats() {
+                const grid=document.getElementById('stats-grid'); if(!APP.user){ grid.innerHTML='<p style="text-align:center;color:var(--text-muted);grid-column:1/-1;">Sign in to see statistics</p>'; return; }
+                const s=calculateStats(); const maxM=Math.max(1,...s.monthlyData.map(d=>d.green+d.red));
+                const bars=s.monthlyData.map(d=>{const t=d.green+d.red; const h=Math.max(4,(t/maxM)*40); return `<div class="mini-bar" style="height:${h}px;background:${d.green>=d.red?'var(--green)':'var(--red)'};" title="${d.month}: ${d.green}🟢 ${d.red}🔴"></div>`;}).join('');
+                grid.innerHTML=`<div class="stat-card"><div class="stat-value">${s.age}</div><div class="stat-label">Current Age</div></div><div class="stat-card"><div class="stat-value">${s.daysLived.toLocaleString()}</div><div class="stat-label">Days Lived</div></div><div class="stat-card"><div class="stat-value">${s.remaining.toLocaleString()}</div><div class="stat-label">Est. Days Remaining</div></div><div class="stat-card"><div class="stat-value green-val">${s.greenDays.toLocaleString()}</div><div class="stat-label">Proud Days 🟢</div></div><div class="stat-card"><div class="stat-value red-val">${s.redDays.toLocaleString()}</div><div class="stat-label">Unsatisfied Days 🔴</div></div><div class="stat-card"><div class="stat-value">${s.satisfaction}%</div><div class="stat-label">Satisfaction</div><div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${s.satisfaction}%;"></div></div></div><div class="stat-card"><div class="stat-value green-val">${s.currentStreak}</div><div class="stat-label">Current Streak 🔥</div></div><div class="stat-card"><div class="stat-value">${s.longestStreak}</div><div class="stat-label">Longest Streak 🏆</div></div><div class="stat-card wide"><div class="stat-label">Monthly Progress (Last 6 months)</div><div class="mini-chart">${bars}</div></div>`;
+            }
+
+            // FRIENDS (Real users only)
+            async function refreshFriends(filter='') {
+                const list=document.getElementById('friends-list'); const search=filter.toLowerCase();
+                if(!APP.user) { list.innerHTML='<p style="text-align:center;color:var(--text-muted);">Sign in to see friends</p>'; return; }
+                if(!firebaseReady) { list.innerHTML='<p style="text-align:center;color:var(--text-muted);">Offline – cannot load users</p>'; return; }
+                list.innerHTML='<p style="text-align:center;color:var(--text-muted);">Loading real users...</p>';
+                try {
+                    const publicProfiles = await dbGet('publicProfiles') || {};
+                    const users = Object.entries(publicProfiles).map(([uid,profile])=>({uid,...profile}));
+                    const filtered = users.filter(u=> u.uid!==APP.uid && (u.name?.toLowerCase().includes(search) || u.country?.toLowerCase().includes(search)) );
+                    if(filtered.length===0) { list.innerHTML='<p style="text-align:center;color:var(--text-muted);padding:20px;">No real users found. Invite friends!</p>'; return; }
+                    list.innerHTML = filtered.map(u=>{
+                        const initials = (u.name||'??').split(' ').map(n=>n[0]).join('').toUpperCase();
+                        const isFollowing = APP.following[u.uid];
+                        return `<div class="user-card">
+                            <div class="user-avatar" style="background:#5b8def;">${initials}</div>
+                            <div class="user-info"><div class="user-name">${u.name||'Anonymous'}</div><div class="user-meta">${u.country||'?'} · ${u.age||'?'}y · ${u.satisfaction||0}%</div></div>
+                            <button class="follow-btn ${isFollowing?'following':''}" onclick="toggleFriendFollow('${u.uid}')">${isFollowing?'Following':'Follow'}</button>
+                        </div>`;
+                    }).join('');
+                } catch(e) { list.innerHTML='<p style="text-align:center;color:var(--red);">Error loading users</p>'; }
+            }
+            function filterFriends(val) { refreshFriends(val); }
+
+            async function toggleFriendFollow(targetUid) {
+                if(!APP.uid) return;
+                if(APP.following[targetUid]) {
+                    delete APP.following[targetUid];
+                    if(firebaseReady) await dbUpdate(`users/${targetUid}/followers/${APP.uid}`, null);
+                    showToast('Unfollowed');
+                } else {
+                    APP.following[targetUid] = Date.now();
+                    if(firebaseReady) await dbUpdate(`users/${targetUid}/followers/${APP.uid}`, true);
+                    showToast('Following! 🎉');
+                }
+                saveAllLocal(); await syncFollowersToFirebase();
+                refreshFriends(document.getElementById('friend-search')?.value||'');
+            }
+
+            // GLOBAL (Real users only, no duplicates)
+            async function refreshGlobal() {
+                if(!APP.user) { document.getElementById('global-stats-grid').innerHTML='<p style="text-align:center;color:var(--text-muted);grid-column:1/-1;">Sign in to compare</p>'; document.getElementById('leaderboard').innerHTML=''; return; }
+                const stats = calculateStats();
+                let allUsers = [];
+                if(firebaseReady) {
+                    const publicProfiles = await dbGet('publicProfiles') || {};
+                    // exclude self from public profiles to avoid duplication
+                    allUsers = Object.entries(publicProfiles)
+                        .filter(([uid]) => uid !== APP.uid)
+                        .map(([uid,profile])=>({uid,...profile}));
+                }
+                // add self
+                allUsers.push({ uid:APP.uid, name:APP.user.name, country:APP.user.country, age:APP.user.age, satisfaction:stats.satisfaction, greenDays:stats.greenDays, redDays:stats.redDays, isMe:true });
+                const sorted = [...allUsers].sort((a,b)=>b.satisfaction-a.satisfaction);
+                const myRank = sorted.findIndex(u=>u.isMe)+1;
+                const globalAvg = allUsers.length>0 ? Math.round(allUsers.reduce((s,u)=>s+u.satisfaction,0)/allUsers.length) : stats.satisfaction;
+                const ageGroup = allUsers.filter(u=> Math.abs(u.age-APP.user.age)<=5 && !u.isMe);
+                const ageAvg = ageGroup.length>0 ? Math.round(ageGroup.reduce((s,u)=>s+u.satisfaction,0)/ageGroup.length) : stats.satisfaction;
+                const countryGroup = allUsers.filter(u=> u.country===APP.user.country && !u.isMe);
+                const countryAvg = countryGroup.length>0 ? Math.round(countryGroup.reduce((s,u)=>s+u.satisfaction,0)/countryGroup.length) : stats.satisfaction;
+                document.getElementById('global-stats-grid').innerHTML=`
+                    <div class="stat-card"><div class="stat-value" style="color:var(--gold);">#${myRank}</div><div class="stat-label">Your Rank</div></div>
+                    <div class="stat-card"><div class="stat-value">${stats.satisfaction}%</div><div class="stat-label">Your Score</div></div>
+                    <div class="stat-card"><div class="stat-value">${globalAvg}%</div><div class="stat-label">Global Avg</div></div>
+                    <div class="stat-card"><div class="stat-value" style="color:${stats.satisfaction>=globalAvg?'var(--green)':'var(--red)'};">${stats.satisfaction>=globalAvg?'+':''}${stats.satisfaction-globalAvg}%</div><div class="stat-label">vs Global</div></div>
+                    <div class="stat-card"><div class="stat-value">${ageAvg}%</div><div class="stat-label">Age Group</div></div>
+                    <div class="stat-card"><div class="stat-value">${countryAvg}%</div><div class="stat-label">${APP.user.country} Avg</div></div>
+                `;
+                document.getElementById('leaderboard').innerHTML = sorted.slice(0,8).map((u,i)=>`
+                    <div class="user-card" style="${u.isMe?'border-color:var(--accent);box-shadow:0 0 20px var(--accent-glow);':''}">
+                        <div class="leaderboard-rank">${i+1}</div>
+                        <div class="user-avatar" style="background:#5b8def;width:36px;height:36px;font-size:0.8rem;">${(u.name||'?').split(' ').map(n=>n[0]).join('').toUpperCase()}</div>
+                        <div class="user-info"><div class="user-name">${u.name||'?'}${u.isMe?' (You)':''}</div><div class="user-meta">${u.country||'?'} · ${u.age||'?'}y</div></div>
+                        <div style="font-weight:700;color:var(--green);">${u.satisfaction||0}%</div>
+                    </div>`).join('');
+            }
+
+            function refreshSettings() {
+                document.getElementById('privacy-options').innerHTML=[
+                    {value:'private',label:'🔒 Private',desc:'Only you'},
+                    {value:'friends-only',label:'👥 Friends Only',desc:'Followers only'},
+                    {value:'public',label:'🌎 Public',desc:'Anyone'}].map(o=>`<div class="privacy-option ${APP.settings.privacy===o.value?'selected':''}" onclick="setPrivacy('${o.value}')"><strong>${o.label}</strong><br><small>${o.desc}</small></div>`).join('');
+                document.getElementById('visibility-toggles').innerHTML=`
+                    <div class="setting-row"><span>Hide Age</span><label class="toggle-switch"><input type="checkbox" ${APP.settings.hideAge?'checked':''} onchange="toggleSetting('hideAge')"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-row"><span>Hide Country</span><label class="toggle-switch"><input type="checkbox" ${APP.settings.hideCountry?'checked':''} onchange="toggleSetting('hideCountry')"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-row"><span>Hide Calendar</span><label class="toggle-switch"><input type="checkbox" ${APP.settings.hideCalendar?'checked':''} onchange="toggleSetting('hideCalendar')"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-row"><span>Hide Statistics</span><label class="toggle-switch"><input type="checkbox" ${APP.settings.hideStats?'checked':''} onchange="toggleSetting('hideStats')"><span class="toggle-slider"></span></label></div>`;
+            }
+            async function setPrivacy(v) { APP.settings.privacy=v; saveAllLocal(); await syncSettingsToFirebase(); refreshSettings(); showToast('Privacy: '+v); }
+            async function toggleSetting(k) { APP.settings[k]=!APP.settings[k]; saveAllLocal(); await syncSettingsToFirebase(); }
+
+            function checkTodayReminder() {
+                if(!APP.user) return; const todayKey=new Date().toISOString().split('T')[0];
+                if(!APP.calendarData[todayKey]||APP.calendarData[todayKey]==='gold') {
+                    const hour=new Date().getHours(); if(hour>=18||hour<3) { const last=APP.lastReminderTime||0; if(Date.now()-last>3600000){ triggerReminder(); APP.lastReminderTime=Date.now(); saveAllLocal(); } }
+                    const badge=document.getElementById('notif-badge-dot'); if(badge&&hour>=16) badge.style.display='block';
+                } else { const badge=document.getElementById('notif-badge-dot'); if(badge) badge.style.display='none'; }
+            }
+            function triggerReminder() {
+                showToast('🎨 Your day is still blank. Paint it!');
+                if(APP.notificationPermission==='granted') try{new Notification('Life Canvas',{body:'Your day is still blank.',icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="%235b8def"/></svg>',tag:'lc'});}catch(e){}
+                APP.notifications.push({message:'Day still blank',time:Date.now(),read:false}); saveAllLocal();
+            }
+            function setupNotifications() {
+                if('Notification' in window && Notification.permission==='default') setTimeout(()=>Notification.requestPermission().then(p=>{APP.notificationPermission=p; if(p==='granted')showToast('🔔 Notifications on!');}),3000);
+                else if('Notification' in window) APP.notificationPermission=Notification.permission;
+            }
+            function showNotifications() { const recent=APP.notifications.slice(-5).reverse(); alert('🔔 Notifications:\n\n'+(recent.map(n=>'• '+n.message).join('\n')||'None')); APP.notifications.forEach(n=>n.read=true); document.getElementById('notif-badge-dot').style.display='none'; saveAllLocal(); }
+
+            function showToast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.classList.remove('hidden'); clearTimeout(t._timeout); t._timeout=setTimeout(()=>t.classList.add('hidden'),3000); }
+
+            if(firebaseReady&&auth) auth.onAuthStateChanged(async (fbUser)=>{
+                if(fbUser) { APP.uid=fbUser.uid; const profile=await dbGet(`users/${fbUser.uid}/profile`); if(profile) { APP.user=profile; await loadFromFirebase(); saveAllLocal(); showMainApp(); refreshAll(); } else if(APP.user&&APP.uid===fbUser.uid) { showMainApp(); refreshAll(); } }
+            });
+
+            function init() {
+                loadAllLocal(); applyTheme();
+                if(APP.user&&APP.uid) {
+                    if(firebaseReady&&auth&&auth.currentUser&&auth.currentUser.uid===APP.uid) { loadFromFirebase().then(()=>{showMainApp();refreshAll();}); }
+                    else if(APP.uid==='local_demo') { showMainApp();refreshAll(); }
+                    else if(firebaseReady&&auth) { showAuthScreen(); } else { showMainApp();refreshAll();showToast('💾 Offline mode'); }
+                } else showAuthScreen();
+                setInterval(checkTodayReminder,60000); setupNotifications(); checkTodayReminder();
+            }
+            document.addEventListener('DOMContentLoaded',()=>{ init(); switchAuthTab('login'); document.getElementById('reflection-modal').addEventListener('click',function(e){if(e.target===this)closeReflectionModal();}); document.addEventListener('click',(e)=>{if(!e.target.closest('.day-cell'))hideCellTooltip();}); });
+
+            window.switchAuthTab=switchAuthTab; window.calcAuthAge=calcAuthAge; window.handleAuth=handleAuth; window.demoLogin=demoLogin;
+            window.logout=logout; window.toggleTheme=toggleTheme; window.switchScreen=switchScreen; window.zoomCalendar=zoomCalendar;
+            window.resetZoom=resetZoom; window.onCellClick=onCellClick; window.showCellTooltip=showCellTooltip; window.hideCellTooltip=hideCellTooltip;
+            window.openReflectionModal=openReflectionModal; window.closeReflectionModal=closeReflectionModal; window.reflectDay=reflectDay;
+            window.filterFriends=filterFriends; window.toggleFriendFollow=toggleFriendFollow; window.setPrivacy=setPrivacy;
+            window.toggleSetting=toggleSetting; window.showNotifications=showNotifications;
+            console.log('🎨 Life Canvas – Real users only. Calendar auto-scrolls to current year. No duplicate entries.');
+        })();
+    </script>
+</body>
+</html>
